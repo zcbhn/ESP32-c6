@@ -3,7 +3,8 @@
 RBMS MQTT → InfluxDB Bridge
 
 Mosquitto에서 CBOR 텔레메트리 수신 → InfluxDB에 기록.
-Raspberry Pi에서 systemd 서비스로 실행.
+Linux 서버에서 systemd 서비스로 실행.
+TLS 지원: INFLUX_SSL=true, INFLUX_SSL_CERT=/path/to/ca.pem
 
 토픽: rbms/<node_id>/telemetry
 페이로드: CBOR map {1:temp_hot, 2:temp_cool, 3:humidity, 4:battery_v,
@@ -33,6 +34,8 @@ INFLUX_PORT = int(os.environ.get("INFLUX_PORT", "8086"))
 INFLUX_DB = os.environ.get("INFLUX_DB", "rbms")
 INFLUX_USER = os.environ.get("INFLUX_USER", "")
 INFLUX_PASS = os.environ.get("INFLUX_PASS", "")
+INFLUX_SSL = os.environ.get("INFLUX_SSL", "false").lower() in ("true", "1", "yes")
+INFLUX_SSL_CERT = os.environ.get("INFLUX_SSL_CERT", "")  # CA cert path
 
 # CBOR 정수 키 → 필드 이름 매핑
 FIELD_MAP = {
@@ -133,6 +136,12 @@ def main():
     if INFLUX_USER:
         influx_kwargs["username"] = INFLUX_USER
         influx_kwargs["password"] = INFLUX_PASS
+    if INFLUX_SSL:
+        influx_kwargs["ssl"] = True
+        influx_kwargs["verify_ssl"] = True
+        if INFLUX_SSL_CERT:
+            influx_kwargs["ssl_ca_cert"] = INFLUX_SSL_CERT
+        log.info("InfluxDB TLS enabled (cert: %s)", INFLUX_SSL_CERT or "system CA")
     influx_client = InfluxDBClient(**influx_kwargs)
     influx_client.create_database(INFLUX_DB)
     log.info("InfluxDB connected: %s:%d/%s", INFLUX_HOST, INFLUX_PORT, INFLUX_DB)

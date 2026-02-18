@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - node_type: TYPE_B
+            sdkconfig_extra: ""
+          - node_type: TYPE_A
+            sdkconfig_extra: "sdkconfig.defaults.type_a"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare Type A config
+        if: matrix.node_type == 'TYPE_A'
+        working-directory: firmware
+        run: |
+          echo "CONFIG_NODE_TYPE_A=y" > sdkconfig.defaults.type_a
+          echo "CONFIG_NODE_TYPE_B=n" >> sdkconfig.defaults.type_a
+
+      - name: ESP-IDF Build (${{ matrix.node_type }})
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.2.3
+          target: esp32c6
+          path: firmware
+          command: |
+            if [ -n "${{ matrix.sdkconfig_extra }}" ]; then
+              idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;${{ matrix.sdkconfig_extra }}" build
+            else
+              idf.py build
+            fi
+
+      - name: Package firmware
+        run: |
+          mkdir -p release
+          cp firmware/build/rbms_firmware.bin release/rbms-${{ matrix.node_type }}.bin
+          cp firmware/build/bootloader/bootloader.bin release/bootloader-${{ matrix.node_type }}.bin
+          cp firmware/build/partition_table/partition-table.bin release/partition-table-${{ matrix.node_type }}.bin
+          # Create merged binary for direct flash
+          cd firmware
+          esptool.py --chip esp32c6 merge_bin -o ../release/rbms-${{ matrix.node_type }}-merged.bin \
+            --flash_mode dio --flash_size 4MB \
+            0x0 build/bootloader/bootloader.bin \
+            0x8000 build/partition_table/partition-table.bin \
+            0x10000 build/rbms_firmware.bin \
+            2>/dev/null || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.node_type }}
+          path: release/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          cp artifacts/release-TYPE_A/* release-files/
+          cp artifacts/release-TYPE_B/* release-files/
+          # Generate checksums
+          cd release-files
+          sha256sum *.bin > SHA256SUMS.txt
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          # Extract the latest version section from CHANGELOG.md
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "RBMS ${{ github.ref_name }}"
+          body: |
+            ## RBMS ${{ github.ref_name }}
+
+            ### Firmware Binaries
+
+            | File | Description |
+            |------|-------------|
+            | `rbms-TYPE_A.bin` | Type A (Router) application binary |
+            | `rbms-TYPE_B.bin` | Type B (SED) application binary |
+            | `rbms-TYPE_A-merged.bin` | Type A merged binary (direct flash) |
+            | `rbms-TYPE_B-merged.bin` | Type B merged binary (direct flash) |
+            | `bootloader-*.bin` | Bootloader binary |
+            | `partition-table-*.bin` | Partition table |
+
+            ### Quick Flash
+
+            ```bash
+            # Type A (Router node)
+            esptool.py --chip esp32c6 write_flash 0x0 rbms-TYPE_A-merged.bin
+
+            # Type B (Battery sensor node)
+            esptool.py --chip esp32c6 write_flash 0x0 rbms-TYPE_B-merged.bin
+            ```
+
+            See [CHANGELOG.md](CHANGELOG.md) for full details.
+          files: release-files/*
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'rc') }}

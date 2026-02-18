@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "thread_node.c" "cbor_codec.c"
+    SRCS "thread_node.c" "cbor_codec.c" "ota_update.c"
     INCLUDE_DIRS "include"
-    REQUIRES log openthread esp_netif esp_event vfs
+    REQUIRES log openthread esp_netif esp_event vfs app_update esp_partition esp_app_format
 )

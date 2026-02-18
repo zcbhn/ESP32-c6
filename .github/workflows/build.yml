@@ -1,16 +1,67 @@
-name: Build Firmware
+name: Build & Test
 
 on:
   push:
     branches: [ main, develop ]
-    paths: [ 'firmware/**' ]
+    paths: [ 'firmware/**', 'test/**' ]
   pull_request:
     branches: [ main ]
-    paths: [ 'firmware/**' ]
+    paths: [ 'firmware/**', 'test/**' ]
 
 jobs:
+  # --- Static Analysis ---
+  cppcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cppcheck
+        run: sudo apt-get install -y cppcheck
+
+      - name: Run cppcheck
+        run: |
+          cppcheck \
+            --enable=warning,style,performance \
+            --suppress=missingIncludeSystem \
+            --suppress=unusedFunction \
+            --error-exitcode=1 \
+            --inline-suppr \
+            -I firmware/components/sensor/include \
+            -I firmware/components/actuator/include \
+            -I firmware/components/control/include \
+            -I firmware/components/safety/include \
+            -I firmware/components/comm/include \
+            -I firmware/components/power/include \
+            -I firmware/components/config/include \
+            firmware/components/ \
+            firmware/main/ \
+            2>&1 | tee cppcheck-report.txt
+
+      - name: Upload cppcheck report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppcheck-report
+          path: cppcheck-report.txt
+
+  # --- Host Unit Tests ---
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and run tests
+        working-directory: test
+        run: make all
+
+      - name: Test summary
+        if: always()
+        run: echo "### Unit Tests Complete" >> $GITHUB_STEP_SUMMARY
+
+  # --- Firmware Build ---
   build:
     runs-on: ubuntu-latest
+    needs: [ cppcheck, unit-tests ]
     strategy:
       matrix:
         include:
