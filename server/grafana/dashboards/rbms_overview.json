@@ -1,0 +1,195 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Hot Zone Temperature",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": "RBMS-InfluxDB",
+      "targets": [
+        {
+          "query": "SELECT mean(\"temp_hot\") FROM \"telemetry\" WHERE $timeFilter GROUP BY time($__interval), \"node_id\" fill(previous)",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 20 },
+              { "color": "orange", "value": 35 },
+              { "color": "red", "value": 40 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Cool Zone Temperature",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": "RBMS-InfluxDB",
+      "targets": [
+        {
+          "query": "SELECT mean(\"temp_cool\") FROM \"telemetry\" WHERE $timeFilter GROUP BY time($__interval), \"node_id\" fill(previous)",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "celsius" }
+      }
+    },
+    {
+      "title": "Humidity",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": "RBMS-InfluxDB",
+      "targets": [
+        {
+          "query": "SELECT mean(\"humidity\") FROM \"telemetry\" WHERE $timeFilter GROUP BY time($__interval), \"node_id\" fill(previous)",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "humidity",
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "title": "Battery Voltage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": "RBMS-InfluxDB",
+      "targets": [
+        {
+          "query": "SELECT mean(\"battery_v\") FROM \"telemetry\" WHERE $timeFilter GROUP BY time($__interval), \"node_id\" fill(previous)",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "volt",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 3.2 },
+              { "color": "green", "value": 3.5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Heater Duty",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 16 },
+      "datasource": "RBMS-InfluxDB",
+      "targets": [
+        {
+          "query": "SELECT last(\"heater_duty\") FROM \"telemetry\" WHERE $timeFilter GROUP BY \"node_id\"",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "title": "Light Brightness",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 16 },
+      "datasource": "RBMS-InfluxDB",
+      "targets": [
+        {
+          "query": "SELECT last(\"light_duty\") FROM \"telemetry\" WHERE $timeFilter GROUP BY \"node_id\"",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "title": "Safety Status",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 16 },
+      "datasource": "RBMS-InfluxDB",
+      "targets": [
+        {
+          "query": "SELECT last(\"safety\") FROM \"telemetry\" WHERE $timeFilter GROUP BY \"node_id\"",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "OK", "color": "green" } } },
+            { "type": "range", "options": { "from": 1, "to": 2, "result": { "text": "WARNING", "color": "orange" } } },
+            { "type": "range", "options": { "from": 3, "to": 99, "result": { "text": "FAULT", "color": "red" } } }
+          ]
+        }
+      }
+    },
+    {
+      "title": "Node Online Status",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 16 },
+      "datasource": "RBMS-InfluxDB",
+      "targets": [
+        {
+          "query": "SELECT count(\"temp_hot\") FROM \"telemetry\" WHERE time > now() - 10m GROUP BY \"node_id\"",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["rbms", "mushroom"],
+  "templating": {
+    "list": [
+      {
+        "name": "node_id",
+        "type": "query",
+        "datasource": "RBMS-InfluxDB",
+        "query": "SHOW TAG VALUES FROM \"telemetry\" WITH KEY = \"node_id\"",
+        "multi": true,
+        "includeAll": true
+      }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "Asia/Seoul",
+  "title": "RBMS Overview",
+  "uid": "rbms-overview"
+}

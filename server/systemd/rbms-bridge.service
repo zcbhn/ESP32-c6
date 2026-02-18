@@ -1,0 +1,19 @@
+[Unit]
+Description=RBMS MQTT-InfluxDB Bridge
+After=network.target mosquitto.service influxdb.service
+Wants=mosquitto.service influxdb.service
+
+[Service]
+Type=simple
+User=rbms
+Group=rbms
+WorkingDirectory=/opt/rbms/bridge
+EnvironmentFile=-/opt/rbms/.env
+ExecStart=/opt/rbms/venv/bin/python3 mqtt_influx_bridge.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

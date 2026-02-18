@@ -1,0 +1,34 @@
+{
+  "species": "Leopard Gecko",
+  "species_kr": "레오파드 게코",
+  "temp_hot": {
+    "target": 32.0,
+    "min": 30.0,
+    "max": 34.0
+  },
+  "temp_cool": {
+    "target": 24.0,
+    "min": 22.0,
+    "max": 26.0
+  },
+  "humidity": {
+    "target": 40.0,
+    "min": 30.0,
+    "max": 50.0
+  },
+  "light_schedule": {
+    "on_hour": 7,
+    "off_hour": 19,
+    "sunrise_minutes": 20,
+    "sunset_minutes": 20
+  },
+  "pid": {
+    "kp": 2.0,
+    "ki": 0.4,
+    "kd": 0.8
+  },
+  "safety": {
+    "overtemp_offset": 5.0,
+    "heater_max_continuous_sec": 3600
+  }
+}

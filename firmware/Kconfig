@@ -1,0 +1,107 @@
+menu "RBMS Configuration"
+
+    choice NODE_TYPE
+        prompt "Node Type"
+        default NODE_TYPE_B
+        help
+            Select the node type to build.
+
+        config NODE_TYPE_A
+            bool "Type A - Full Node (Mains Power)"
+        config NODE_TYPE_B
+            bool "Type B - Battery Sensor Node"
+    endchoice
+
+    menu "Sensor Configuration"
+        config SENSOR_SHT30_ADDR
+            hex "SHT30 I2C Address"
+            default 0x44
+
+        config SENSOR_DS18B20_GPIO
+            int "DS18B20 1-Wire Data GPIO"
+            default 2
+
+        config DS18B20_POWER_GPIO
+            int "DS18B20 VCC Control GPIO (Type B)"
+            default 3
+            depends on NODE_TYPE_B
+    endmenu
+
+    menu "Actuator Configuration"
+        depends on NODE_TYPE_A
+
+        config SSR_HEATER_GPIO
+            int "SSR Heater Output GPIO"
+            default 3
+
+        config SSR_LIGHT_GPIO
+            int "SSR UV Light Output GPIO"
+            default 5
+
+        config PWM_DIMMING_GPIO
+            int "LEDC PWM Dimming Output GPIO"
+            default 10
+    endmenu
+
+    menu "PID Configuration"
+        depends on NODE_TYPE_A
+
+        config PID_KP
+            int "PID Kp x100"
+            default 200
+            help
+                Proportional gain multiplied by 100. Default 200 = 2.0
+
+        config PID_KI
+            int "PID Ki x100"
+            default 50
+            help
+                Integral gain multiplied by 100. Default 50 = 0.5
+
+        config PID_KD
+            int "PID Kd x100"
+            default 100
+            help
+                Derivative gain multiplied by 100. Default 100 = 1.0
+    endmenu
+
+    menu "Adaptive Polling (Type B)"
+        depends on NODE_TYPE_B
+
+        config ADAPTIVE_POLL_ENABLED
+            bool "Enable Adaptive Polling"
+            default y
+
+        config POLL_DELTA_HIGH
+            int "Rapid Change Threshold x10 (degC)"
+            default 10
+            help
+                Temperature delta threshold x10. Default 10 = 1.0°C
+
+        config POLL_PERIOD_FAST
+            int "Fast Polling Period (seconds)"
+            default 30
+
+        config POLL_PERIOD_SLOW
+            int "Slow Polling Period (seconds)"
+            default 300
+
+        config BATTERY_CHECK_INTERVAL
+            int "Battery Check Interval (poll count)"
+            default 30
+    endmenu
+
+    menu "Safety Configuration"
+        config SAFETY_OVERTEMP_OFFSET
+            int "Overtemp Shutdown Offset x10 (degC)"
+            default 50
+            help
+                Offset above setpoint x10. Default 50 = 5.0°C
+
+        config HEATER_MAX_CONTINUOUS
+            int "Heater Max Continuous (seconds)"
+            default 3600
+            depends on NODE_TYPE_A
+    endmenu
+
+endmenu

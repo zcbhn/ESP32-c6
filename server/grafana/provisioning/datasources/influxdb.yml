@@ -1,0 +1,14 @@
+# Grafana Datasource Provisioning — InfluxDB
+apiVersion: 1
+
+datasources:
+  - name: RBMS-InfluxDB
+    type: influxdb
+    access: proxy
+    url: http://localhost:8086
+    database: rbms
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMode: GET
+      keepCookies: []

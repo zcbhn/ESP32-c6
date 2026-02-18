@@ -1,0 +1,43 @@
+# ESP-IDF build
+firmware/build/
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/managed_components/
+firmware/dependencies.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# KiCad backups
+hardware/kicad/*-backups/
+hardware/kicad/*.kicad_prl
+hardware/kicad/fp-info-cache
+
+# Grafana data
+server/grafana/data/
+
+# Tool logs
+tools/logs/
+tools/*_log.txt
+
+# Temporary sdkconfig overrides
+firmware/sdkconfig.type_a
+
+# Secrets
+*.env
+secrets.yaml

@@ -1,0 +1,34 @@
+{
+  "species": "Crested Gecko",
+  "species_kr": "크레스티드 게코",
+  "temp_hot": {
+    "target": 26.0,
+    "min": 24.0,
+    "max": 28.0
+  },
+  "temp_cool": {
+    "target": 22.0,
+    "min": 20.0,
+    "max": 24.0
+  },
+  "humidity": {
+    "target": 70.0,
+    "min": 60.0,
+    "max": 80.0
+  },
+  "light_schedule": {
+    "on_hour": 7,
+    "off_hour": 19,
+    "sunrise_minutes": 30,
+    "sunset_minutes": 30
+  },
+  "pid": {
+    "kp": 1.5,
+    "ki": 0.3,
+    "kd": 0.5
+  },
+  "safety": {
+    "overtemp_offset": 4.0,
+    "heater_max_continuous_sec": 1800
+  }
+}
