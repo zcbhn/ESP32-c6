@@ -1,0 +1,22 @@
+[Unit]
+Description=RBMS Thread UDP to MQTT Gateway
+After=network.target mosquitto.service otbr-agent.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=rbms
+Group=rbms
+WorkingDirectory=/opt/rbms/gateway
+EnvironmentFile=-/opt/rbms/.env
+ExecStart=/opt/rbms/venv/bin/python3 thread_mqtt_gateway.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# UDP port binding
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

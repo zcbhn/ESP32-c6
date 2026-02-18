@@ -1,7 +1,7 @@
 # RBMS Gap Analysis
 
-> Date: 2026-02-18 (Final Audit)
-> Version: v1.0.0-rc1 (35 audit issues fixed + web-based improvements applied)
+> Date: 2026-02-19 (Server Gateway Update)
+> Version: v1.0.0-rc2 (35 audit issues + server gateway + OTBR setup)
 
 ---
 
@@ -13,7 +13,7 @@
 ██████████ Firmware              100%  OK  (31/31 files, Type A/B build success)
 ██████████ Server                100%  OK  (Mosquitto, InfluxDB, Grafana, Bridge)
 ██████████ GitHub CI/Build       100%  OK  (Type A/B parallel build + artifacts)
-██████████ Code Quality/Safety   100%  OK  (35 audit issues + 8 web improvements)
+██████████ Code Quality/Safety   100%  OK  (35 audit issues + 16 web improvements)
 ███░░░░░░░ Documentation          30%  !!  (PDF not generated)
 ░░░░░░░░░░ Hardware Design         0%  XX  (SVG schematic excluded)
 ```
@@ -97,7 +97,12 @@
 | `server/bridge/mqtt_influx_bridge.py` | CBOR-to-InfluxDB bridge (env-based auth) |
 | `server/bridge/requirements.txt` | Python dependencies |
 | `server/systemd/rbms-bridge.service` | systemd service (EnvironmentFile) |
-| `server/scripts/setup.sh` | 8-step auto install (InfluxDB auth + UFW firewall) |
+| `server/scripts/setup.sh` | 9-step auto install (InfluxDB auth + UFW firewall) |
+| `server/gateway/thread_mqtt_gateway.py` | Thread UDP→MQTT gateway (CBOR forwarding) |
+| `server/gateway/requirements.txt` | Gateway Python dependencies |
+| `server/systemd/rbms-gateway.service` | Gateway systemd service |
+| `server/border-router/setup_otbr.sh` | OpenThread Border Router install script |
+| `server/border-router/README.md` | OTBR setup guide (RCP flash, network formation) |
 
 ---
 
@@ -162,8 +167,9 @@
 - **Implementation complete**: 31 (100%)
 - **Header API declarations**: 16 / 16 (100%)
 - **Build success**: Type A OK, Type B OK
-- **Server implementation**: 100% (9 files)
+- **Server implementation**: 100% (14 files)
 - **Code audit**: 35/35 issues fixed (100%)
 - **Web improvements**: 16 items applied
 - **Missing directories**: 3 (hardware)
 - **Missing documents**: 3 PDF
+- **Data pipeline**: Complete (Thread UDP → Gateway → MQTT → Bridge → InfluxDB → Grafana)

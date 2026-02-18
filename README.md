@@ -43,11 +43,17 @@ ESP32-C6 + OpenThread + 저전력 배터리 노드로 구성된 오픈소스 파
        │
        ▼
 ┌─────────────────────────────────────────────┐
-│  Border Router (Raspberry Pi)               │
+│  Border Router (Linux Server)                │
 │  ┌──────────┐ ┌──────────┐ ┌─────────────┐ │
-│  │ Mosquitto│ │ InfluxDB │ │   Grafana   │ │
-│  │  (MQTT)  │ │(시계열DB) │ │ (대시보드)   │ │
-│  └──────────┘ └──────────┘ └─────────────┘ │
+│  ┌────────┐ ┌──────────┐ ┌──────────┐     │
+│  │Gateway │→│Mosquitto │→│ Bridge   │     │
+│  │UDP→MQTT│ │  (MQTT)  │ │MQTT→DB   │     │
+│  └────────┘ └──────────┘ └────┬─────┘     │
+│                               ▼            │
+│             ┌──────────┐ ┌─────────────┐  │
+│             │ InfluxDB │→│   Grafana   │  │
+│             │(시계열DB) │ │ (대시보드)   │  │
+│             └──────────┘ └─────────────┘  │
 └─────────────────────────────────────────────┘
 ```
 
@@ -111,8 +117,12 @@ reptile-habitat-monitor/
 │   ├── 3d-case/                   # 케이스 3D 프린트 파일
 │   └── reference/                 # 참조 회로도, 데이터시트 링크
 ├── server/                        # 서버 구성
-│   ├── mqtt/                      # Mosquitto 설정
+│   ├── border-router/             # OpenThread Border Router 설치
+│   ├── gateway/                   # Thread UDP → MQTT 게이트웨이
+│   ├── bridge/                    # MQTT → InfluxDB 브릿지
+│   ├── mosquitto/                 # Mosquitto MQTT 설정
 │   ├── grafana/                   # 대시보드 JSON
+│   ├── systemd/                   # systemd 서비스 파일
 │   └── scripts/                   # 설치/관리 스크립트
 ├── presets/                       # 종별 환경 프리셋
 │   ├── ball_python.json
@@ -158,13 +168,23 @@ idf.py build
 idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
-### 서버 설치 (Raspberry Pi)
+### 서버 설치 (Linux)
+
+Debian/Ubuntu 기반 Linux 서버 (RPi, 미니PC, 일반PC 등):
 
 ```bash
+# 1. Border Router 설치 (RCP 디바이스 USB 연결 후)
+cd server/border-router
+sudo ./setup_otbr.sh /dev/ttyACM0
+
+# 2. 서버 스택 설치 (Mosquitto + InfluxDB + Grafana + Gateway + Bridge)
 cd server/scripts
-chmod +x setup.sh
-./setup.sh
-# Mosquitto + InfluxDB + Grafana 자동 설치 및 설정
+sudo ./setup.sh
+```
+
+데이터 흐름:
+```
+Thread UDP :5684 → rbms-gateway → MQTT → rbms-bridge → InfluxDB → Grafana
 ```
 
 ---
