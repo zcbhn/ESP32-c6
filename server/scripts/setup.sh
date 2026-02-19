@@ -25,6 +25,11 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
+# --- 비밀번호 생성 ---
+MQTT_BRIDGE_PASS=$(openssl rand -base64 16)
+MQTT_DASHBOARD_PASS=$(openssl rand -base64 16)
+GRAFANA_ADMIN_PASS=$(openssl rand -base64 16)
+
 # --- 1. System packages ---
 echo "[1/9] 시스템 패키지 업데이트..."
 apt-get update -qq
@@ -37,9 +42,9 @@ apt-get install -y -qq mosquitto mosquitto-clients
 cp "$SERVER_DIR/mosquitto/mosquitto.conf" /etc/mosquitto/mosquitto.conf
 cp "$SERVER_DIR/mosquitto/acl.conf" /etc/mosquitto/acl.conf
 
-# MQTT users (bridge + gateway share same credentials)
-mosquitto_passwd -b -c /etc/mosquitto/passwd rbms_bridge rbms_bridge_pass
-mosquitto_passwd -b /etc/mosquitto/passwd rbms_dashboard rbms_dashboard_pass
+# MQTT users (랜덤 비밀번호)
+mosquitto_passwd -b -c /etc/mosquitto/passwd rbms_bridge "$MQTT_BRIDGE_PASS"
+mosquitto_passwd -b /etc/mosquitto/passwd rbms_dashboard "$MQTT_DASHBOARD_PASS"
 
 systemctl enable mosquitto
 systemctl restart mosquitto
@@ -94,23 +99,41 @@ chown -R grafana:grafana /var/lib/grafana/dashboards
 
 systemctl enable grafana-server
 systemctl restart grafana-server
-echo "  Grafana 설치 완료 (http://localhost:3000, admin/admin)"
+
+# Grafana admin 비밀번호 변경
+sleep 2
+grafana-cli admin reset-admin-password "$GRAFANA_ADMIN_PASS" 2>/dev/null || true
+
+echo "  Grafana 설치 완료"
 
 # --- 5. RBMS user + install dir ---
 echo "[5/9] RBMS 사용자 및 디렉토리 생성..."
 id -u "$RBMS_USER" &>/dev/null || useradd --system --no-create-home "$RBMS_USER"
 mkdir -p "$INSTALL_DIR/bridge" "$INSTALL_DIR/gateway"
 
-# Save credentials
+# Save credentials (모두 랜덤 생성)
 cat > "$INSTALL_DIR/.env" <<ENVEOF
-# RBMS Server Credentials (auto-generated)
+# RBMS Server Credentials (auto-generated, do not share)
+# Generated: $(date -Iseconds)
+
+# InfluxDB
 INFLUX_ADMIN_PASS=$INFLUX_ADMIN_PASS
 INFLUX_USER=rbms_writer
 INFLUX_PASS=$INFLUX_WRITER_PASS
 INFLUX_READER_USER=grafana_reader
 INFLUX_READER_PASS=$INFLUX_READER_PASS
+
+# MQTT
 MQTT_USER=rbms_bridge
-MQTT_PASS=rbms_bridge_pass
+MQTT_PASS=$MQTT_BRIDGE_PASS
+
+# Grafana
+GRAFANA_ADMIN_PASS=$GRAFANA_ADMIN_PASS
+GRAFANA_DASHBOARD_MQTT_PASS=$MQTT_DASHBOARD_PASS
+
+# MQTT TLS (uncomment to enable)
+# MQTT_TLS=true
+# MQTT_CA_CERT=/opt/rbms/certs/ca.pem
 ENVEOF
 chmod 600 "$INSTALL_DIR/.env"
 echo "  인증 정보 저장: $INSTALL_DIR/.env"
@@ -152,6 +175,7 @@ ufw default allow outgoing
 ufw allow ssh
 ufw allow 3000/tcp comment "Grafana"
 ufw allow 1883/tcp comment "MQTT"
+ufw allow 8883/tcp comment "MQTT-TLS"
 ufw --force enable
 
 echo ""
@@ -167,16 +191,24 @@ echo " RBMS Server Setup 완료"
 echo "==========================================="
 echo ""
 echo " 접속 정보:"
-echo "   Grafana:    http://$(hostname -I | awk '{print $1}'):3000  (admin/admin)"
+echo "   Grafana:    http://$(hostname -I | awk '{print $1}'):3000"
 echo "   InfluxDB:   http://localhost:8086"
 echo "   MQTT:       localhost:1883"
-echo "   인증 정보:   $INSTALL_DIR/.env"
+echo ""
+echo " 인증 정보 (모두 랜덤 생성됨):"
+echo "   Grafana admin 비밀번호: $GRAFANA_ADMIN_PASS"
+echo "   MQTT bridge 비밀번호:   $MQTT_BRIDGE_PASS"
+echo "   인증 파일:               $INSTALL_DIR/.env"
 echo ""
 echo " 데이터 흐름:"
 echo "   Thread UDP :5684 -> rbms-gateway -> MQTT -> rbms-bridge -> InfluxDB -> Grafana"
 echo ""
+echo " MQTT TLS 활성화:"
+echo "   1. server/bridge/TLS_SETUP.md 참고하여 인증서 생성"
+echo "   2. $INSTALL_DIR/.env 에서 MQTT_TLS=true 주석 해제"
+echo "   3. systemctl restart rbms-gateway rbms-bridge"
+echo ""
 echo " 다음 단계:"
-echo "   1. Grafana 초기 비밀번호 변경"
-echo "   2. Mosquitto 비밀번호 변경 후 .env 업데이트"
-echo "   3. Border Router 미설치 시: server/border-router/setup_otbr.sh 실행"
+echo "   1. Border Router 미설치 시: server/border-router/setup_otbr.sh 실행"
+echo "   2. 위 인증 정보를 안전하게 보관하세요"
 echo ""

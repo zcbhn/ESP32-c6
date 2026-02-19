@@ -13,7 +13,7 @@
 ██████████ Firmware              100%  OK  (33/33 files, Type A/B build success)
 ██████████ Server                100%  OK  (16 files, full data pipeline)
 ██████████ GitHub CI/Build       100%  OK  (cppcheck + unit tests + build + release)
-██████████ Code Quality/Safety   100%  OK  (35 audit issues + 16 web improvements)
+██████████ Code Quality/Safety   100%  OK  (35 audit issues + 16 web improvements + security hardening)
 ██████████ Documentation         100%  OK  (3 specs + CHANGELOG + hardware ref)
 ██████████ Unit Tests            100%  OK  (PID, CBOR, adaptive_poll)
 ██████████ Hardware Reference    100%  OK  (BOM, pinout, design notes)
@@ -153,6 +153,10 @@ Thread UDP :5684 -> Gateway -> MQTT -> Bridge -> InfluxDB (TLS) -> Grafana
 | PID output NaN | Heater runaway | isnanf guard | Mitigated |
 | Task hang/deadlock | Heater stuck ON | Watchdog timer (10s, panic reset) | Mitigated |
 | OTA bad firmware | Device brick | Dual partition + rollback | Mitigated |
+| MQTT credential leak | Unauthorized access | Random password + env-only (no hardcode) | Mitigated |
+| MQTT plaintext | Data interception | TLS 8883 listener + client support | Mitigated |
+| Bridge data loss | Missing telemetry | Retry buffer (3 attempts) + overflow guard | Mitigated |
+| Gateway socket failure | Data gap | Auto socket recreation + multicast rejoin | Mitigated |
 
 ---
 

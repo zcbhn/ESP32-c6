@@ -14,12 +14,15 @@ ESP32-C6 노드의 UDP/CBOR 텔레메트리를 MQTT로 변환 발행.
 
 노드 ID: 송신자 IPv6 주소의 마지막 4자리 hex
 토픽: rbms/<node_id>/telemetry
+
+MQTT TLS: MQTT_TLS=true, MQTT_CA_CERT=/path/to/ca.pem
 """
 
 import logging
 import os
 import signal
 import socket
+import ssl
 import struct
 import sys
 import time
@@ -27,11 +30,13 @@ import time
 import cbor2
 import paho.mqtt.client as mqtt
 
-# --- Configuration (env vars with defaults) ---
+# --- Configuration (env vars) ---
 MQTT_HOST = os.environ.get("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.environ.get("MQTT_PORT", "1883"))
 MQTT_USER = os.environ.get("MQTT_USER", "rbms_bridge")
-MQTT_PASS = os.environ.get("MQTT_PASS", "rbms_bridge_pass")
+MQTT_PASS = os.environ.get("MQTT_PASS")
+MQTT_TLS = os.environ.get("MQTT_TLS", "false").lower() in ("true", "1", "yes")
+MQTT_CA_CERT = os.environ.get("MQTT_CA_CERT", "")
 
 UDP_PORT = int(os.environ.get("THREAD_UDP_PORT", "5684"))
 THREAD_IFACE = os.environ.get("THREAD_IFACE", "wpan0")
@@ -39,6 +44,10 @@ MULTICAST_GROUP = os.environ.get("THREAD_MULTICAST", "ff03::1")
 
 # CBOR integer key -> field name (firmware cbor_codec.c 와 동일)
 VALID_KEYS = {1, 2, 3, 4, 5, 6, 7}
+
+# 소켓 재생성 간격 (wpan0 복구 대기)
+SOCKET_RETRY_INTERVAL = 10  # seconds
+MAX_CONSECUTIVE_ERRORS = 5
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO").upper(),
@@ -83,6 +92,20 @@ def create_udp_socket() -> socket.socket:
     return sock
 
 
+def try_rejoin_multicast(sock: socket.socket) -> bool:
+    """wpan0 인터페이스 복구 시 멀티캐스트 그룹 재가입 시도"""
+    try:
+        iface_index = socket.if_nametoindex(THREAD_IFACE)
+        mreq = socket.inet_pton(socket.AF_INET6, MULTICAST_GROUP)
+        mreq += struct.pack("@I", iface_index)
+        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
+        log.info("Rejoined multicast %s on %s (index %d)",
+                 MULTICAST_GROUP, THREAD_IFACE, iface_index)
+        return True
+    except OSError:
+        return False
+
+
 def validate_cbor(data: bytes) -> bool:
     """CBOR 페이로드 유효성 검증"""
     try:
@@ -108,12 +131,26 @@ def on_mqtt_disconnect(client, userdata, rc):
 
 
 def main():
+    # MQTT 비밀번호 필수 확인
+    if not MQTT_PASS:
+        log.error("MQTT_PASS environment variable is required")
+        sys.exit(1)
+
     # MQTT client
     mqttc = mqtt.Client(client_id="rbms-gateway")
     mqttc.username_pw_set(MQTT_USER, MQTT_PASS)
     mqttc.on_connect = on_mqtt_connect
     mqttc.on_disconnect = on_mqtt_disconnect
     mqttc.reconnect_delay_set(min_delay=1, max_delay=30)
+
+    # MQTT TLS
+    if MQTT_TLS:
+        tls_kwargs = {}
+        if MQTT_CA_CERT:
+            tls_kwargs["ca_certs"] = MQTT_CA_CERT
+        mqttc.tls_set(**tls_kwargs)
+        log.info("MQTT TLS enabled (cert: %s)", MQTT_CA_CERT or "system CA")
+
     mqttc.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
     mqttc.loop_start()
 
@@ -135,24 +172,51 @@ def main():
     stats = {"rx": 0, "pub": 0, "err": 0, "invalid": 0}
     stats_interval = 300  # 5 min
     last_stats_time = time.time()
+    consecutive_errors = 0
+    last_rejoin_attempt = 0
 
     try:
         while running:
             try:
                 data, addr_info = sock.recvfrom(512)
                 addr = addr_info[0]  # IPv6 address string
+                consecutive_errors = 0
             except socket.timeout:
-                # Periodic stats log
-                if time.time() - last_stats_time >= stats_interval:
+                now = time.time()
+                # 주기적 통계 로그
+                if now - last_stats_time >= stats_interval:
                     log.info("Stats: rx=%d pub=%d err=%d invalid=%d",
                              stats["rx"], stats["pub"],
                              stats["err"], stats["invalid"])
-                    last_stats_time = time.time()
+                    last_stats_time = now
+
+                # 주기적 멀티캐스트 재가입 시도 (wpan0 복구 감지)
+                if now - last_rejoin_attempt >= SOCKET_RETRY_INTERVAL:
+                    try_rejoin_multicast(sock)
+                    last_rejoin_attempt = now
                 continue
             except OSError as e:
-                log.error("UDP recv error: %s", e)
+                consecutive_errors += 1
                 stats["err"] += 1
-                time.sleep(1)
+                log.error("UDP recv error: %s (consecutive: %d)",
+                          e, consecutive_errors)
+
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                    # 소켓 재생성 (wpan0 인터페이스 변경 등)
+                    log.warning("Too many consecutive errors, recreating socket")
+                    try:
+                        sock.close()
+                    except OSError:
+                        pass
+                    time.sleep(SOCKET_RETRY_INTERVAL)
+                    try:
+                        sock = create_udp_socket()
+                        consecutive_errors = 0
+                        log.info("Socket recreated successfully")
+                    except OSError as se:
+                        log.error("Socket recreation failed: %s", se)
+                else:
+                    time.sleep(1)
                 continue
 
             stats["rx"] += 1
@@ -166,7 +230,6 @@ def main():
                 continue
 
             # Forward raw CBOR to MQTT
-            # mqtt_influx_bridge.py handles CBOR decoding
             topic = f"rbms/{node_id}/telemetry"
             result = mqttc.publish(topic, data, qos=1)
 

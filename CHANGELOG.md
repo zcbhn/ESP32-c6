@@ -12,11 +12,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unit tests for core components (PID, CBOR, scheduler, adaptive_poll)
 - cppcheck static analysis in CI/CD pipeline
 - Release automation workflow (tag-triggered)
-- InfluxDB TLS encryption support
 - Hardware reference documents (BOM, pinout, design notes)
 - System specification document (RBMS-SPEC-001)
 - Development roadmap document (RBMS-DEV-001)
 - Hardware design reference document (RBMS-HW-001)
+
+### Fixed
+- Bridge `flush_buffer()` data loss: InfluxDB 쓰기 실패 시 버퍼 유지 및 재시도 (최대 3회)
+- Bridge MQTT 재연결 시 `reconnect_delay_set` 및 `on_disconnect` 콜백 추가
+- Gateway UDP 소켓: wpan0 인터페이스 복구 시 자동 소켓 재생성 및 멀티캐스트 재가입
+- Bridge 버퍼 무한 증가 방지 (최대 1000 포인트, 초과 시 오래된 데이터 삭제)
+
+### Security
+- MQTT 비밀번호 하드코딩 제거: `MQTT_PASS` 환경변수 필수 (미설정 시 즉시 종료)
+- `setup.sh` MQTT/Grafana 비밀번호 `openssl rand`로 랜덤 생성
+- MQTT TLS 지원 추가 (`MQTT_TLS`, `MQTT_CA_CERT` 환경변수)
+- Mosquitto TLS 리스너 설정 추가 (8883 포트)
+- Grafana admin 비밀번호 자동 변경 (`grafana-cli`)
+- 통합 TLS 문서 (MQTT + InfluxDB)
 
 ## [1.0.0-rc2] - 2026-02-19
 
